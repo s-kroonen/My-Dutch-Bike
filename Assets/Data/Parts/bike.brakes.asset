@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7d1046b8abf7ebc4cbb8d156303d853c, type: 3}
+  m_Name: bike.brakes
+  m_EditorClassIdentifier: 
+  id: bike.brakes
+  displayName: Brakes
+  prefab: {fileID: 2040806284831557610, guid: f3cf0888fb8859b458fbbb7345f8f450, type: 3}
+  mass: 1
+  category: 9
+  installsOn: 9
+  dependencies: []
+  sockets: []
+  fasteners:
+  - id: caliper_bolt_1
+    type: 0
+    localPosition: {x: 0.02, y: 0, z: 0}
+    tightnessThreshold: 0.9
+    toolRequired: 1
+  - id: caliper_bolt_2
+    type: 0
+    localPosition: {x: -0.02, y: 0, z: 0}
+    tightnessThreshold: 0.9
+    toolRequired: 1

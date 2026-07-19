@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7d1046b8abf7ebc4cbb8d156303d853c, type: 3}
+  m_Name: bike.chain
+  m_EditorClassIdentifier: 
+  id: bike.chain
+  displayName: Chain
+  prefab: {fileID: 2546161043260150860, guid: 3384e2c38ce443b41b34c73d10db85f9, type: 3}
+  mass: 1
+  category: 6
+  installsOn: 6
+  dependencies:
+  - {fileID: 11400000, guid: 7c53ecda7d2459b4daa77b0c55a58a6a, type: 2}
+  sockets: []
+  fasteners: []

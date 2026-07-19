@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7d1046b8abf7ebc4cbb8d156303d853c, type: 3}
+  m_Name: bike.seat
+  m_EditorClassIdentifier: 
+  id: bike.seat
+  displayName: Seat
+  prefab: {fileID: 4821934458321539816, guid: ae5f52bee3b4df345a0a10a5e04d51d4, type: 3}
+  mass: 1
+  category: 8
+  installsOn: 8
+  dependencies: []
+  sockets: []
+  fasteners:
+  - id: seat_clamp
+    type: 0
+    localPosition: {x: 0, y: 0, z: 0}
+    tightnessThreshold: 0.9
+    toolRequired: 1
