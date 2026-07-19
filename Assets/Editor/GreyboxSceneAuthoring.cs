@@ -154,6 +154,8 @@ public static class GreyboxSceneAuthoring
         camAnchor.localPosition = new Vector3(0f, 1.1f, -0.35f);
         ride.cameraAnchor = camAnchor;
 
+        CreateStandProp(stand.transform);
+
         var requiredParts = BikeBomAuthoring.SharedRequiredParts;
         var looseParent = new GameObject($"{name}_LooseParts").transform;
         looseParent.SetParent(stand.transform.parent, true);
@@ -162,11 +164,42 @@ public static class GreyboxSceneAuthoring
             var def = requiredParts[i];
             float angle = i * (360f / requiredParts.Length) * Mathf.Deg2Rad;
             var offset = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * 1.6f;
-            var instance = Object.Instantiate(def.prefab, position + offset + Vector3.up * 0.15f, Quaternion.identity, looseParent);
+            var instance = Object.Instantiate(def.prefab, position + offset + Vector3.up * 0.3f, Quaternion.identity, looseParent);
             instance.name = def.displayName;
             var loose = instance.AddComponent<LoosePart>();
             loose.definition = def;
+
+            var rb = instance.AddComponent<Rigidbody>();
+            rb.mass = Mathf.Max(0.05f, def.mass);
         }
+    }
+
+    /// <summary>Static placeholder repair stand the frame visually rests in — a post + cradle,
+    /// offset off the bike's centerline so it doesn't clip the bottom-bracket/crankset socket.</summary>
+    private static void CreateStandProp(Transform parent)
+    {
+        var mat = MaterialFor("StandMat", new Color(0.12f, 0.12f, 0.14f));
+
+        var post = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        post.name = "StandPost";
+        post.transform.SetParent(parent, false);
+        post.transform.localPosition = new Vector3(0.18f, 0.15f, 0f);
+        post.transform.localScale = new Vector3(0.06f, 0.3f, 0.06f);
+        post.GetComponent<Renderer>().sharedMaterial = mat;
+
+        var cradle = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        cradle.name = "StandCradle";
+        cradle.transform.SetParent(parent, false);
+        cradle.transform.localPosition = new Vector3(0.18f, 0.3f, 0f);
+        cradle.transform.localScale = new Vector3(0.16f, 0.04f, 0.16f);
+        cradle.GetComponent<Renderer>().sharedMaterial = mat;
+
+        var foot = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        foot.name = "StandFoot";
+        foot.transform.SetParent(parent, false);
+        foot.transform.localPosition = new Vector3(0.18f, 0.015f, 0f);
+        foot.transform.localScale = new Vector3(0.3f, 0.03f, 0.4f);
+        foot.GetComponent<Renderer>().sharedMaterial = mat;
     }
 
     private static void CreatePlayerRig(Vector3 position)

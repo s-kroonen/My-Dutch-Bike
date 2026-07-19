@@ -22,9 +22,31 @@ namespace MyDutchBike.Interaction
         private Vector3 _cameraOriginalLocalPos;
         private Quaternion _cameraOriginalLocalRot;
         private string _prompt = "";
+        private bool _cursorLocked = true;
+
+        private void Awake()
+        {
+            ApplyCursorLock(true);
+        }
+
+        private void OnApplicationFocus(bool hasFocus)
+        {
+            if (hasFocus && _cursorLocked)
+                ApplyCursorLock(true);
+        }
+
+        private void ApplyCursorLock(bool locked)
+        {
+            _cursorLocked = locked;
+            Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
+            Cursor.visible = !locked;
+        }
 
         private void Update()
         {
+            if (Input.GetKeyDown(KeyCode.Escape))
+                ApplyCursorLock(!_cursorLocked);
+
             _prompt = "";
 
             if (_mountedBike != null)
