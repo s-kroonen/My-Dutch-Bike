@@ -196,6 +196,8 @@ public static class GreyboxSceneAuthoring
         interactor.eye = cam;
         interactor.firstPerson = firstPerson;
         interactor.holdPoint = holdPoint.transform;
+
+        player.AddComponent<BikeDebugOverlay>();
     }
 
     private static Material MaterialFor(string name, Color color)
@@ -203,11 +205,24 @@ public static class GreyboxSceneAuthoring
         string path = $"Assets/Art/Materials/{name}.mat";
         var existing = AssetDatabase.LoadAssetAtPath<Material>(path);
         if (existing != null)
+        {
+            SetBaseColor(existing, color); // re-apply: earlier runs used the wrong shader property
             return existing;
+        }
 
         var shader = Shader.Find("Universal Render Pipeline/Lit");
-        var mat = new Material(shader) { color = color };
+        var mat = new Material(shader);
+        SetBaseColor(mat, color);
         AssetDatabase.CreateAsset(mat, path);
         return mat;
+    }
+
+    /// <summary>URP shaders expose "_BaseColor", not the legacy "_Color" that Material.color assumes.</summary>
+    private static void SetBaseColor(Material mat, Color color)
+    {
+        if (mat.HasProperty("_BaseColor"))
+            mat.SetColor("_BaseColor", color);
+        else
+            mat.color = color;
     }
 }

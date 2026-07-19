@@ -8,5 +8,6 @@ namespace MyDutchBike.Bike
         public string partDefId;
         public string fastenerSlotId;
         public BikeAssembly owner;
+        public Renderer indicator;
     }
 }

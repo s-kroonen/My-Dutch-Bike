@@ -10,5 +10,6 @@ namespace MyDutchBike.Bike
         public PartCategory acceptedCategory;
         public bool occupied;
         public BikeAssembly owner;
+        public Renderer indicator;
     }
 }

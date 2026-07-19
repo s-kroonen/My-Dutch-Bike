@@ -21,11 +21,15 @@ namespace MyDutchBike.Interaction
         private Transform _cameraOriginalParent;
         private Vector3 _cameraOriginalLocalPos;
         private Quaternion _cameraOriginalLocalRot;
+        private string _prompt = "";
 
         private void Update()
         {
+            _prompt = "";
+
             if (_mountedBike != null)
             {
+                _prompt = "[E] Dismount";
                 if (Input.GetKeyDown(KeyCode.E))
                     Dismount();
                 return;
@@ -37,15 +41,24 @@ namespace MyDutchBike.Interaction
             if (_heldPart == null)
             {
                 var loose = hit.collider.GetComponentInParent<LoosePart>();
-                if (loose != null && Input.GetKeyDown(KeyCode.E))
+                if (loose != null)
                 {
-                    PickUp(loose);
-                    return;
+                    _prompt = $"[E] Pick up {loose.definition.displayName}";
+                    if (Input.GetKeyDown(KeyCode.E))
+                    {
+                        PickUp(loose);
+                        return;
+                    }
                 }
 
                 var fastener = hit.collider.GetComponent<FastenerPoint>();
                 if (fastener != null)
                 {
+                    var partState = fastener.owner.State.Find(fastener.partDefId);
+                    var fastenerState = partState?.fasteners.Find(f => f.fastenerSlotId == fastener.fastenerSlotId);
+                    float tightness = fastenerState != null ? fastenerState.tightness : 0f;
+                    _prompt = $"[LMB] tighten / [RMB] loosen {fastener.fastenerSlotId} ({tightness:P0})";
+
                     if (Input.GetMouseButton(0))
                         fastener.owner.SetFastenerTightness(fastener.partDefId, fastener.fastenerSlotId, tightenPerSecond * Time.deltaTime);
                     else if (Input.GetMouseButton(1))
@@ -54,11 +67,17 @@ namespace MyDutchBike.Interaction
                 }
 
                 var bike = hit.collider.GetComponentInParent<BikeAssembly>();
-                if (bike != null && Input.GetKeyDown(KeyCode.E))
-                    Mount(bike);
+                if (bike != null)
+                {
+                    _prompt = bike.IsFullyAssembledAndSecured() ? "[E] Mount" : "Bike incomplete";
+                    if (Input.GetKeyDown(KeyCode.E))
+                        Mount(bike);
+                }
             }
             else
             {
+                _prompt = $"Holding {_heldPart.definition.displayName} — [Q] drop";
+
                 if (Input.GetKeyDown(KeyCode.Q))
                 {
                     Drop();
@@ -66,9 +85,40 @@ namespace MyDutchBike.Interaction
                 }
 
                 var socket = hit.collider.GetComponent<SocketMarker>();
-                if (socket != null && Input.GetKeyDown(KeyCode.E))
-                    PlaceOnSocket(socket);
+                if (socket != null)
+                {
+                    bool canInstall = socket.owner.CanInstall(_heldPart.definition, socket.socketId, out var reason);
+                    _prompt = canInstall ? $"[E] Place on {socket.socketId}" : $"Can't place: {reason}";
+                    if (canInstall && Input.GetKeyDown(KeyCode.E))
+                        PlaceOnSocket(socket);
+                }
             }
+        }
+
+        private void OnGUI()
+        {
+            float cx = Screen.width * 0.5f;
+            float cy = Screen.height * 0.5f;
+
+            const float size = 8f, thickness = 2f;
+            GUI.DrawTexture(new Rect(cx - size, cy - thickness * 0.5f, size * 2f, thickness), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(cx - thickness * 0.5f, cy - size, thickness, size * 2f), Texture2D.whiteTexture);
+
+            if (string.IsNullOrEmpty(_prompt))
+                return;
+
+            var style = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 14 };
+            style.normal.textColor = Color.white;
+            var rect = new Rect(cx - 200f, cy + 16f, 400f, 24f);
+            GUI.Label(new Rect(rect.x + 1, rect.y + 1, rect.width, rect.height), _prompt, WithColor(style, Color.black));
+            GUI.Label(rect, _prompt, style);
+        }
+
+        private static GUIStyle WithColor(GUIStyle style, Color color)
+        {
+            var copy = new GUIStyle(style);
+            copy.normal.textColor = color;
+            return copy;
         }
 
         private void PickUp(LoosePart loose)

@@ -225,15 +225,26 @@ public static class BikeBomAuthoring
         var existing = AssetDatabase.LoadAssetAtPath<Material>(path);
         if (existing != null)
         {
+            SetBaseColor(existing, color); // re-apply: earlier runs used the wrong shader property
             MaterialCache[name] = existing;
             return existing;
         }
 
         var shader = Shader.Find("Universal Render Pipeline/Lit");
-        var mat = new Material(shader) { color = color };
+        var mat = new Material(shader);
+        SetBaseColor(mat, color);
         AssetDatabase.CreateAsset(mat, path);
         MaterialCache[name] = mat;
         return mat;
+    }
+
+    /// <summary>URP shaders expose "_BaseColor", not the legacy "_Color" that Material.color assumes.</summary>
+    private static void SetBaseColor(Material mat, Color color)
+    {
+        if (mat.HasProperty("_BaseColor"))
+            mat.SetColor("_BaseColor", color);
+        else
+            mat.color = color;
     }
 
     private static void EnsureFolder(string parent, string name)

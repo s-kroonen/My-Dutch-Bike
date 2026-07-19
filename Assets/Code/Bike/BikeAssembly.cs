@@ -24,6 +24,11 @@ namespace MyDutchBike.Bike
         private readonly Dictionary<string, Transform> _socketTransforms = new Dictionary<string, Transform>();
         private readonly Dictionary<string, SocketMarker> _socketMarkers = new Dictionary<string, SocketMarker>();
         private readonly Dictionary<string, GameObject> _spawnedInstances = new Dictionary<string, GameObject>();
+        private readonly Dictionary<string, FastenerPoint> _fastenerPoints = new Dictionary<string, FastenerPoint>();
+
+        private static readonly Color SocketOpenColor = new Color(0.2f, 1f, 0.5f);
+        private static readonly Color FastenerLooseColor = new Color(1f, 0.2f, 0.15f);
+        private static readonly Color FastenerTightColor = new Color(0.2f, 1f, 0.3f);
 
         private bool _initialized;
 
@@ -79,6 +84,7 @@ namespace MyDutchBike.Bike
                 marker.socketId = socket.id;
                 marker.acceptedCategory = socket.acceptedCategory;
                 marker.owner = this;
+                marker.indicator = DebugVisualUtility.CreateIndicator(socketGo.transform, 0.06f, SocketOpenColor);
 
                 _socketTransforms[socket.id] = socketGo.transform;
                 _socketMarkers[socket.id] = marker;
@@ -104,7 +110,9 @@ namespace MyDutchBike.Bike
                 point.partDefId = def.id;
                 point.fastenerSlotId = slot.id;
                 point.owner = this;
+                point.indicator = DebugVisualUtility.CreateIndicator(pointGo.transform, 0.025f, FastenerLooseColor);
 
+                _fastenerPoints[FastenerKey(def.id, slot.id)] = point;
                 state.fasteners.Add(new FastenerState { fastenerSlotId = slot.id, present = true, tightness = 0f });
             }
         }
@@ -156,7 +164,10 @@ namespace MyDutchBike.Bike
             instance.name = def.displayName;
             _spawnedInstances[def.id] = instance;
 
-            _socketMarkers[socketId].occupied = true;
+            var occupiedMarker = _socketMarkers[socketId];
+            occupiedMarker.occupied = true;
+            if (occupiedMarker.indicator != null)
+                occupiedMarker.indicator.gameObject.SetActive(false);
 
             var state = new PartState { partDefId = def.id, installed = true, onSocketId = socketId };
             State.parts.Add(state);
@@ -175,8 +186,14 @@ namespace MyDutchBike.Bike
                 return false;
 
             fastener.tightness = Mathf.Clamp01(fastener.tightness + delta);
+
+            if (_fastenerPoints.TryGetValue(FastenerKey(partDefId, fastenerSlotId), out var point) && point.indicator != null)
+                DebugVisualUtility.SetColor(point.indicator, Color.Lerp(FastenerLooseColor, FastenerTightColor, fastener.tightness));
+
             return true;
         }
+
+        private static string FastenerKey(string partDefId, string fastenerSlotId) => $"{partDefId}:{fastenerSlotId}";
 
         public IEnumerable<string> OpenSocketIdsFor(PartCategory category)
         {
