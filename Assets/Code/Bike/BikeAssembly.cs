@@ -33,6 +33,10 @@ namespace MyDutchBike.Bike
         private readonly Dictionary<string, PartDefinition> _installedDefs = new Dictionary<string, PartDefinition>();
         // FastenerKey(defId, slotId) -> the slot id on the same part that must be tight before this one can be.
         private readonly Dictionary<string, string> _fastenerPrereq = new Dictionary<string, string>();
+        // socketId -> defId of the part that PROVIDES the socket (its parent in the assembly train).
+        private readonly Dictionary<string, string> _socketProvider = new Dictionary<string, string>();
+        // socketId -> defId of the part currently INSTALLED on it (its child), if any.
+        private readonly Dictionary<string, string> _socketOccupant = new Dictionary<string, string>();
 
         private const float SecuredThreshold = 0.9f;
 
@@ -113,6 +117,7 @@ namespace MyDutchBike.Bike
 
                 _socketTransforms[socket.id] = socketGo.transform;
                 _socketMarkers[socket.id] = marker;
+                _socketProvider[socket.id] = def.id;
             }
         }
 
@@ -161,16 +166,30 @@ namespace MyDutchBike.Bike
                 return false;
             }
 
+            // Attach gate: the part providing this socket must be fully torqued before a child goes on it
+            // (so you can't hang a wheel off a fork whose headset isn't tight). The frame has no fasteners,
+            // so its sockets are always open.
+            if (_socketProvider.TryGetValue(socketId, out var providerId) && !IsPartSecured(providerId))
+            {
+                reason = $"tighten {DisplayName(providerId)} first";
+                return false;
+            }
+
             if (def.dependencies != null)
             {
                 foreach (var dep in def.dependencies)
                 {
-                    // Dependency need only be installed (e.g. the chain needs the rear wheel ON, not yet
-                    // torqued) — otherwise "attach everything, then tighten" can leave a part uninstallable.
+                    // Dependencies must be installed AND fully torqued (e.g. the chain won't route until the
+                    // rear wheel it reaches across to is seated tight).
                     var depState = State.Find(dep.id);
                     if (depState == null || !depState.installed)
                     {
-                        reason = $"missing dependency: {dep.id}";
+                        reason = $"attach {dep.displayName} first";
+                        return false;
+                    }
+                    if (!depState.IsSecured())
+                    {
+                        reason = $"tighten {dep.displayName} first";
                         return false;
                     }
                 }
@@ -179,6 +198,15 @@ namespace MyDutchBike.Bike
             reason = "";
             return true;
         }
+
+        private bool IsPartSecured(string partDefId)
+        {
+            var state = State.Find(partDefId);
+            return state != null && state.IsSecured();
+        }
+
+        private string DisplayName(string partDefId)
+            => _installedDefs.TryGetValue(partDefId, out var d) && d != null ? d.displayName : partDefId;
 
         public bool TryInstallPart(PartDefinition def, string socketId)
         {
@@ -202,6 +230,7 @@ namespace MyDutchBike.Bike
 
             var occupiedMarker = _socketMarkers[socketId];
             occupiedMarker.occupied = true;
+            _socketOccupant[socketId] = def.id;
             if (occupiedMarker.indicator != null)
                 occupiedMarker.indicator.gameObject.SetActive(false);
 
@@ -277,6 +306,7 @@ namespace MyDutchBike.Bike
             if (!string.IsNullOrEmpty(state.onSocketId) && _socketMarkers.TryGetValue(state.onSocketId, out var parentMarker))
             {
                 parentMarker.occupied = false;
+                _socketOccupant.Remove(state.onSocketId);
                 if (parentMarker.indicator != null)
                     parentMarker.indicator.gameObject.SetActive(true);
             }
@@ -288,6 +318,8 @@ namespace MyDutchBike.Bike
                 {
                     _socketMarkers.Remove(socket.id);
                     _socketTransforms.Remove(socket.id);
+                    _socketProvider.Remove(socket.id);
+                    _socketOccupant.Remove(socket.id);
                 }
             }
             if (def.fasteners != null)
@@ -351,6 +383,15 @@ namespace MyDutchBike.Bike
         public bool CanAdjustFastener(string partDefId, string fastenerSlotId, bool increasing, out string reason)
         {
             reason = "";
+
+            // Layered fasteners ("train"): you can only turn a part's fasteners when it's the leaf — nothing
+            // is still attached to it. This forces teardown to be the strict reverse of assembly.
+            if (HasOccupiedChildSocket(partDefId, out string childName))
+            {
+                reason = $"remove {childName} first";
+                return false;
+            }
+
             if (increasing)
             {
                 if (_fastenerPrereq.TryGetValue(FastenerKey(partDefId, fastenerSlotId), out var prereqId)
@@ -379,10 +420,63 @@ namespace MyDutchBike.Bike
             return true;
         }
 
+        /// <summary>True if any socket this part provides currently has a child installed on it (so the part
+        /// is a parent in the train, not a leaf). <paramref name="childName"/> names one such child.</summary>
+        public bool HasOccupiedChildSocket(string partDefId, out string childName)
+        {
+            childName = "";
+            if (!_installedDefs.TryGetValue(partDefId, out var def) || def == null || def.sockets == null)
+                return false;
+            foreach (var socket in def.sockets)
+            {
+                if (_socketMarkers.TryGetValue(socket.id, out var m) && m.occupied)
+                {
+                    childName = _socketOccupant.TryGetValue(socket.id, out var occ) ? DisplayName(occ) : "the attached part";
+                    return true;
+                }
+            }
+            return false;
+        }
+
         /// <summary>The live GameObject for an installed part (frame or otherwise), or null. Lets a part's
         /// own components (e.g. ChainRoute) find sibling parts it needs to reach, like the crankset/rear wheel.</summary>
         public GameObject GetInstalledInstance(string partDefId)
             => _spawnedInstances.TryGetValue(partDefId, out var go) ? go : null;
+
+        /// <summary>Nearest removable-ish installed part to the player's aim, within a cone — so small or
+        /// visually-buried parts (brakes, the chain) can be aimed at to remove, not just pixel-perfect rays.
+        /// The frame is never returned (it doesn't come off).</summary>
+        public InstalledPart FindAimedInstalledPart(Vector3 origin, Vector3 direction, float maxRange, float maxAngleDeg, out float angle)
+        {
+            angle = float.MaxValue;
+            InstalledPart best = null;
+
+            foreach (var kv in _spawnedInstances)
+            {
+                if (frameDefinition != null && kv.Key == frameDefinition.id)
+                    continue;
+                var go = kv.Value;
+                if (go == null)
+                    continue;
+                var ip = go.GetComponent<InstalledPart>();
+                if (ip == null)
+                    continue;
+
+                Vector3 toPart = go.transform.position - origin;
+                float distance = toPart.magnitude;
+                if (distance > maxRange)
+                    continue;
+
+                float a = Vector3.Angle(direction, toPart);
+                if (a > maxAngleDeg || a >= angle)
+                    continue;
+
+                angle = a;
+                best = ip;
+            }
+
+            return best;
+        }
 
         private static string FastenerKey(string partDefId, string fastenerSlotId) => $"{partDefId}:{fastenerSlotId}";
 

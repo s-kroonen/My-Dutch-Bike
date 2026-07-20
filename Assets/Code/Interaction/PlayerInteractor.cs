@@ -105,9 +105,16 @@ namespace MyDutchBike.Interaction
             // Tightening: aim-cone (tight, so looking at the frame body still lets you mount) because
             // the fastener colliders are too small/buried to reliably hit with a ray.
             var fastener = FindAimedFastener(origin, direction, out var fastenerBike);
+
+            // Installed part to act on: prefer a direct ray hit, else fall back to an aim cone so small or
+            // buried parts (brakes, the chain) can still be targeted for removal.
             var installed = hasHit ? hit.collider.GetComponentInParent<InstalledPart>() : null;
+            BikeAssembly installedBike = installed != null ? installed.owner : null;
+            if (installed == null)
+                installed = FindAimedInstalledPart(origin, direction, out installedBike);
+
             var aimedBike = fastenerBike != null ? fastenerBike
-                : installed != null ? installed.owner
+                : installedBike != null ? installedBike
                 : hasHit ? hit.collider.GetComponentInParent<BikeAssembly>() : null;
 
             // [LMB]/[RMB] adjust the targeted fastener (works whether building or disassembling).
@@ -142,15 +149,23 @@ namespace MyDutchBike.Interaction
                     return;
                 }
             }
-            else if (installed != null && installed.owner.CanRemove(installed.partDefId, out _))
+            else if (installed != null)
             {
-                actionPrompt = $"[E] Remove {installed.name}";
-                if (Input.GetKeyDown(KeyCode.E))
+                if (installed.owner.CanRemove(installed.partDefId, out string removeReason))
                 {
-                    var removed = installed.owner.TryRemovePart(installed.partDefId);
-                    if (removed != null)
-                        PickUp(removed);
-                    return;
+                    actionPrompt = $"[E] Remove {installed.name}";
+                    if (Input.GetKeyDown(KeyCode.E))
+                    {
+                        var removed = installed.owner.TryRemovePart(installed.partDefId);
+                        if (removed != null)
+                            PickUp(removed);
+                        return;
+                    }
+                }
+                else if (tightenPrompt == null)
+                {
+                    // Explain why this part can't come off yet (e.g. "loosen all fasteners first").
+                    actionPrompt = $"{installed.name}: {removeReason}";
                 }
             }
 
@@ -183,6 +198,31 @@ namespace MyDutchBike.Interaction
                 {
                     bestAngle = angle;
                     best = point;
+                    owner = bike;
+                }
+            }
+
+            return best;
+        }
+
+        /// <summary>Nearest installed part to the player's aim across all bikes, within the placement cone —
+        /// the fallback that lets small/buried parts (brakes, the chain) be aimed at for removal.</summary>
+        private InstalledPart FindAimedInstalledPart(Vector3 origin, Vector3 direction, out BikeAssembly owner)
+        {
+            owner = null;
+            InstalledPart best = null;
+            float bestAngle = float.MaxValue;
+
+            foreach (var bike in _bikes)
+            {
+                if (bike == null)
+                    continue;
+
+                var ip = bike.FindAimedInstalledPart(origin, direction, interactRange, placeAngleDegrees, out float angle);
+                if (ip != null && angle < bestAngle)
+                {
+                    bestAngle = angle;
+                    best = ip;
                     owner = bike;
                 }
             }

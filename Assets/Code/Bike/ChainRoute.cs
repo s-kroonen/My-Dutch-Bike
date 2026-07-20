@@ -66,10 +66,15 @@ namespace MyDutchBike.Bike
                 else if (point.fastenerSlotId == rearSlotId) _rearPoint = point;
             }
 
-            // Hide the loose "coil" pickup mesh; the routed line is the chain from here on.
+            // Hide the loose "coil" pickup mesh (the routed line is the chain now) but KEEP its collider,
+            // so you can still aim at the chain to remove it once it's unrouted.
             var coil = transform.Find("Coil");
             if (coil != null)
-                coil.gameObject.SetActive(false);
+            {
+                var mr = coil.GetComponent<MeshRenderer>();
+                if (mr != null)
+                    mr.enabled = false;
+            }
 
             SetUpLine();
             BuildRearCogs();
