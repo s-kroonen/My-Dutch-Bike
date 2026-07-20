@@ -3,10 +3,11 @@
 > Read [`CLAUDE.md`](CLAUDE.md) first for the rules; this doc is the **state snapshot**.
 > Update this file whenever you hand off again — it's meant to stay current, not be a diary.
 
-**As of:** the "MCP wired up + interaction loop + bike rework" commit on `main`,
+**As of:** the "two-stage chain routing" commit on `main`,
 repo https://github.com/s-kroonen/My-Dutch-Bike
 **Milestone:** M1 — the bike vertical slice (`docs/PROJECT_MOLEN_PLAN.md` §12). The bike is now
-**fully hand-buildable and fully removable** — the core M1 loop works end to end.
+**fully hand-buildable and fully removable**, and the **chain is a real routed drivetrain part** —
+the core M1 loop works end to end.
 
 ## Tooling change this session: MCP for Unity is live
 
@@ -62,6 +63,15 @@ repo https://github.com/s-kroonen/My-Dutch-Bike
 7. **Loose-part physics** — cylinder parts (wheel/tire/crankset) get a **convex mesh collider** instead
    of the default rolling capsule, plus `angularDamping = 4` on loose/removed rigidbodies, so a dropped
    wheel/tire falls flat and settles instead of rolling forever.
+8. **Chain routing** (`ChainRoute` + `BikeBomAuthoring` sprockets) — the chain is no longer a placeholder.
+   Install it on the `crankset.chain` socket, then **route it in two ordered stages** by holding LMB:
+   front chainring first, then rear cog (gated behind front). It reuses the fastener hold-to-progress
+   mechanic (two `isChainRoute` fasteners `chain_front`/`chain_rear` with a `prerequisiteFastenerId`), so
+   the chain counts as secured only when both stages are 100% — which feeds completeness/removal for free.
+   `ChainRoute` draws a `LineRenderer` loop wrapping both sprockets (front wrap = stage 1, spans + rear
+   wrap = stage 2). The crankset has a front chainring; the **rear cog stack is built from the archetype's
+   `FrameMechanics.rearGearCount`** — city = internal hub (**1 cog**), race = derailleur cassette (**7 cogs**).
+   Ordering/label live on `FastenerSlot` (generic), so prompts read "route/unroute chain (front/rear sprocket)".
 
 ## Verified (via MCP, in play mode)
 
@@ -69,16 +79,25 @@ repo https://github.com/s-kroonen/My-Dutch-Bike
 - All 11 parts strip off in reverse (fasteners reachable) → only the frame remains.
 - Colliders: Wheel/Tire/Crankset are convex MeshColliders; Frame is 6 box-collider tubes.
 - Handlebar bar sits above the seat. Screenshots confirmed the frame/wheel/tire/handlebar look.
+- **Chain (city bike, play mode):** all 11 parts install; routing the rear before the front is blocked
+  (stays 0); front-then-rear reaches 100%; rear cog count = 1 (city hub); `complete=True`; a side-on
+  screenshot shows the chain wrapping both sprockets. **Race not driven in play** (7-cog cassette shares
+  the exact same `ChainRoute`/gear-count path; `rearGearCount=7` confirmed in the mechanics asset).
 - **Not yet human-playtested for *feel*** — cone sizes (25°/8°), blink readability, crouch/sprint/jump
-  feel, frame proportions. Logic is proven; hands-on tuning is the open question.
+  feel, frame proportions, and now the **chain routing feel** (aiming at the front/rear sprocket points,
+  how long the two holds take). Logic + visual are proven; hands-on tuning is the open question.
 
 ## Known rough edges / not yet done
 
-- **Chain is a placeholder** — a straight cube on the `crankset.chain` socket; it does **not** visually
-  route to the rear wheel. **This is the next planned task** (see the local memory note
-  `next-chain-routing.md`).
+- **Part-failure mechanics not started** — the user explicitly wants these *next* after the chain:
+  a **chain-link failure / chain falling off**, a **flat tire**, a **broken spoke**. The chain is now
+  structured to support the first of these (routing state + visual are in `ChainRoute`). Nothing decays
+  or fails yet.
+- **Derailleur shifting not built** — race bikes render a 7-cog cassette, but you can't shift across it;
+  the chain routes onto the stack as one unit. Shifting is a later mechanic (gear count is data-driven now).
 - **No save/load** (plan §6.3, highest-risk system) — `AssemblyState` is designed to serialize to JSON;
-  not started.
+  not started. Note the chain's routing state is just its two fastener tightness values, so it serialises
+  the same as any bolt.
 - **No wear/condition decay** — `PartState.condition` exists, nothing decrements it.
 - **No PSX render pipeline** — plain URP defaults; intentional for M1.
 - **Legacy Input Manager**, not the new Input System — deliberate (WASD/mouse/E/Q/LMB/RMB/Ctrl/Shift/Space).
@@ -89,8 +108,10 @@ repo https://github.com/s-kroonen/My-Dutch-Bike
 
 ## Suggested next steps
 
-1. **Chain routing** (see memory note) — make the chain span crankset↔rear wheel dynamically.
-2. **Human playtest + tune** the interaction feel (cone sizes, blink, crouch/sprint/jump).
+1. **Part-failure mechanics** (user's stated next focus) — chain-link failure / chain off, flat tire,
+   broken spoke. Build on `PartState.condition` (exists, unused) + the chain routing state.
+2. **Human playtest + tune** the interaction feel (cone sizes, blink, crouch/sprint/jump, and the new
+   chain-routing holds — how it feels to aim at the front then rear sprocket).
 3. Then pick the next system: **save/load** (de-risks the hardest piece early) vs. more M1 polish vs.
    starting the PSX art pass. Ask the user.
 4. Eventually M2 (the windmill) once M1 feels solid.

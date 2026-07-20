@@ -83,7 +83,7 @@ matter day to day:
 | `docs/PART_SYSTEM_DESIGN.md` | the part/fastener system design |
 | `docs/DEMO_GUIDE.md` | how to open the project and play the current build, plus controls |
 | `Assets/Code/Parts/` | authored data model: `PartDefinition`, `SocketDefinition`, `FastenerSlot`, `FrameMechanics`, plain-data `AssemblyState` |
-| `Assets/Code/Bike/` | `BikeAssembly` (install/tighten logic), `SocketMarker`, `FastenerPoint`, `BikeRideController`, `BikeDebugOverlay`, `DebugVisualUtility` |
+| `Assets/Code/Bike/` | `BikeAssembly` (install/tighten logic), `SocketMarker`, `FastenerPoint`, `ChainRoute` (two-stage chain routing + rear cog stack), `BikeRideController`, `BikeDebugOverlay`, `DebugVisualUtility` |
 | `Assets/Code/Interaction/` | `PlayerInteractor` (raycast pickup/place/tighten/mount + crosshair/cursor lock), `LoosePart` |
 | `Assets/Code/Player/` | `FirstPersonController` |
 | `Assets/Editor/` | idempotent authoring scripts + `M1SmokeTest.cs` — see above |
