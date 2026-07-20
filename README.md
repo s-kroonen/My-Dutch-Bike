@@ -12,7 +12,12 @@ or on a dedicated race track.
 
 See [`docs/PROJECT_MOLEN_PLAN.md`](docs/PROJECT_MOLEN_PLAN.md) for the full plan,
 [`docs/PART_SYSTEM_DESIGN.md`](docs/PART_SYSTEM_DESIGN.md) for the part/fastener system,
-and [`docs/ART_DIRECTION_SPEC.md`](docs/ART_DIRECTION_SPEC.md) for the art bible.
+[`docs/ART_DIRECTION_SPEC.md`](docs/ART_DIRECTION_SPEC.md) for the art bible, and
+[`docs/DEMO_GUIDE.md`](docs/DEMO_GUIDE.md) for how to open the project and play it.
+
+**Picking this up fresh (including a different agent/machine)?** Read
+[`CLAUDE.md`](CLAUDE.md) for the working rules and [`HANDOVER.md`](HANDOVER.md) for
+exactly where things stand right now.
 
 ## Requirements
 Unity 6 (LTS), Git, Git LFS.

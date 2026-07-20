@@ -20,5 +20,8 @@ Assets/AssetStoreTools*
 crashlytics-build.properties
 sysinfo.txt
 
-# Local Claude Code session state (not project config)
-.claude/
+# Local Claude Code session state - but keep the shared project config/hooks tracked
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+!.claude/hooks/**
