@@ -19,5 +19,7 @@ namespace MyDutchBike.Parts
         public float turnRate = 90f;
         [Tooltip("Higher = more stable/slower to tip; lower = twitchier.")]
         public float stability = 1f;
+        [Tooltip("Number of rear sprockets/cogs. City bikes use an internal hub gear = 1; race/mountain bikes use a derailleur cassette = up to 7. Drives the rear cog stack the chain routes onto (ADR-0005); actual shifting is a later mechanic.")]
+        public int rearGearCount = 1;
     }
 }

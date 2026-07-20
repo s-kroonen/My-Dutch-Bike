@@ -116,7 +116,13 @@ namespace MyDutchBike.Interaction
             {
                 fastenerBike.SetTargetedFastener(fastener);
                 float tightness = fastenerBike.GetFastenerTightness(fastener.partDefId, fastener.fastenerSlotId);
-                tightenPrompt = $"[LMB] tighten / [RMB] loosen {fastener.fastenerSlotId} ({tightness:P0})";
+                string verb = fastener.isChainRoute ? "route" : "tighten";
+                string unverb = fastener.isChainRoute ? "unroute" : "loosen";
+
+                bool blockedUp = !fastenerBike.CanAdjustFastener(fastener.partDefId, fastener.fastenerSlotId, true, out string why);
+                tightenPrompt = blockedUp
+                    ? $"{fastener.Label}: {why} ({tightness:P0})"
+                    : $"[LMB] {verb} / [RMB] {unverb} {fastener.Label} ({tightness:P0})";
 
                 if (Input.GetMouseButton(0))
                     fastenerBike.SetFastenerTightness(fastener.partDefId, fastener.fastenerSlotId, tightenPerSecond * Time.deltaTime);

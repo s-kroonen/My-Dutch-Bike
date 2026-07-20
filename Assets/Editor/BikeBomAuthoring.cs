@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using MyDutchBike.Bike;
 using MyDutchBike.Parts;
 using UnityEditor;
 using UnityEngine;
@@ -67,8 +68,9 @@ public static class BikeBomAuthoring
         FrameCity = CreatePart("bike.frame.city", "City Frame", PartCategory.Frame, PartCategory.None, cityFramePrefab, null, frameSockets, null);
         FrameRace = CreatePart("bike.frame.race", "Race Frame", PartCategory.Frame, PartCategory.None, raceFramePrefab, null, frameSockets, null);
 
-        CityMechanics = CreateMechanics("bike.frame.city", topSpeed: 5f, accel: 2.5f, turnRate: 110f, stability: 1.3f);
-        RaceMechanics = CreateMechanics("bike.frame.race", topSpeed: 9f, accel: 4f, turnRate: 70f, stability: 0.7f);
+        // City = internal hub gear (single rear cog); race = derailleur cassette (7). See ADR-0005.
+        CityMechanics = CreateMechanics("bike.frame.city", topSpeed: 5f, accel: 2.5f, turnRate: 110f, stability: 1.3f, rearGearCount: 1);
+        RaceMechanics = CreateMechanics("bike.frame.race", topSpeed: 9f, accel: 4f, turnRate: 70f, stability: 0.7f, rearGearCount: 7);
 
         var forkPrefab = CreatePrimitivePrefab("Fork", PrimitiveType.Cube,
             new Vector3(0.06f, 0.4f, 0.06f), Vector3.zero, new Vector3(0f, -0.2f, 0f), new Color(0.2f, 0.2f, 0.2f));
@@ -105,8 +107,7 @@ public static class BikeBomAuthoring
         TireFront = CreatePart("bike.tire_front", "Front Tire", PartCategory.Tire, PartCategory.Tire, tirePrefab, null, null, null);
         TireRear = CreatePart("bike.tire_rear", "Rear Tire", PartCategory.Tire, PartCategory.Tire, tirePrefab, null, null, null);
 
-        var cranksetPrefab = CreatePrimitivePrefab("Crankset", PrimitiveType.Cylinder,
-            new Vector3(0.22f, 0.02f, 0.22f), new Vector3(0f, 0f, 90f), Vector3.zero, new Color(0.6f, 0.6f, 0.65f));
+        var cranksetPrefab = CreateCranksetPrefab("Crankset", new Color(0.6f, 0.6f, 0.65f));
         var cranksetSockets = new[]
         {
             new SocketDefinition { id = "crankset.pedal", acceptedCategory = PartCategory.Pedal, localPosition = new Vector3(0.15f, 0f, 0.15f) },
@@ -119,9 +120,18 @@ public static class BikeBomAuthoring
         };
         Crankset = CreatePart("bike.crankset", "Crankset", PartCategory.Crankset, PartCategory.Crankset, cranksetPrefab, null, cranksetSockets, cranksetFasteners);
 
-        var chainPrefab = CreatePrimitivePrefab("Chain", PrimitiveType.Cube,
-            new Vector3(0.5f, 0.02f, 0.02f), Vector3.zero, new Vector3(-0.25f, 0f, 0f), new Color(0.15f, 0.15f, 0.15f));
-        Chain = CreatePart("bike.chain", "Chain", PartCategory.Chain, PartCategory.Chain, chainPrefab, new[] { WheelRear }, null, null);
+        // Chain is routed (not bolted): two ordered chain-routing points — front chainring, then rear cog.
+        // Held-LMB progresses each 0→100%; rear is gated behind front (prerequisite). ChainRoute draws the
+        // line wrapping both sprockets. Positions are fallbacks — ChainRoute snaps them onto the real sprockets.
+        var chainPrefab = CreateChainPrefab("Chain", new Color(0.15f, 0.15f, 0.15f));
+        var chainRoutePoints = new[]
+        {
+            new FastenerSlot { id = "chain_front", type = FastenerType.Screw, localPosition = new Vector3(0f, 0f, 0.05f),
+                displayLabel = "chain (front sprocket)", isChainRoute = true },
+            new FastenerSlot { id = "chain_rear", type = FastenerType.Screw, localPosition = new Vector3(0f, 0f, -0.4f),
+                displayLabel = "chain (rear cog)", isChainRoute = true, prerequisiteFastenerId = "chain_front" },
+        };
+        Chain = CreatePart("bike.chain", "Chain", PartCategory.Chain, PartCategory.Chain, chainPrefab, new[] { WheelRear }, null, chainRoutePoints);
 
         // T-shaped handlebar: a tall stem that rises off the fork with a wide bar on top, so the grips end
         // up higher than the seat. The stem bolt sits at the base where it clamps to the fork.
@@ -179,12 +189,16 @@ public static class BikeBomAuthoring
         return part;
     }
 
-    private static FrameMechanics CreateMechanics(string frameId, float topSpeed, float accel, float turnRate, float stability)
+    private static FrameMechanics CreateMechanics(string frameId, float topSpeed, float accel, float turnRate, float stability, int rearGearCount)
     {
         string path = $"{MechanicsDir}/{frameId}.asset";
         var existing = AssetDatabase.LoadAssetAtPath<FrameMechanics>(path);
         if (existing != null)
+        {
+            existing.rearGearCount = rearGearCount; // re-apply so older generated assets pick up the new field
+            EditorUtility.SetDirty(existing);
             return existing;
+        }
 
         var mechanics = ScriptableObject.CreateInstance<FrameMechanics>();
         mechanics.frameId = frameId;
@@ -192,6 +206,7 @@ public static class BikeBomAuthoring
         mechanics.acceleration = accel;
         mechanics.turnRate = turnRate;
         mechanics.stability = stability;
+        mechanics.rearGearCount = rearGearCount;
 
         AssetDatabase.CreateAsset(mechanics, path);
         return mechanics;
@@ -288,6 +303,86 @@ public static class BikeBomAuthoring
         bar.transform.localPosition = new Vector3(0f, stemHeight, 0f);
         bar.transform.localScale = new Vector3(0.5f, 0.04f, 0.04f);
         bar.GetComponent<Renderer>().sharedMaterial = mat;
+
+        var prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
+        Object.DestroyImmediate(root);
+        return prefab;
+    }
+
+    /// <summary>Crankset = the crank body (a disc, axle along X) plus a front chainring on the drive side
+    /// (−X, matching ChainRoute.driveOffset) that the chain wraps.</summary>
+    private static GameObject CreateCranksetPrefab(string name, Color color)
+    {
+        string path = $"{PrefabDir}/{name}.prefab";
+        var existing = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        if (existing != null)
+            return existing;
+
+        var root = new GameObject(name);
+
+        var body = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        body.name = "Visual";
+        body.transform.SetParent(root.transform, false);
+        body.transform.localEulerAngles = new Vector3(0f, 0f, 90f); // axle along X
+        body.transform.localScale = new Vector3(0.22f, 0.02f, 0.22f);
+        body.GetComponent<Renderer>().sharedMaterial = GetOrCreateMaterial(name + "Mat", color);
+        // Convex disc hull so a dropped crankset settles instead of rolling on a capsule.
+        Object.DestroyImmediate(body.GetComponent<Collider>());
+        var bodyCol = body.AddComponent<MeshCollider>();
+        bodyCol.sharedMesh = body.GetComponent<MeshFilter>().sharedMesh;
+        bodyCol.convex = true;
+
+        var ring = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        ring.name = "ChainRing";
+        ring.transform.SetParent(root.transform, false);
+        ring.transform.localEulerAngles = new Vector3(0f, 0f, 90f);
+        ring.transform.localPosition = new Vector3(-0.06f, 0f, 0f); // drive side
+        ring.transform.localScale = new Vector3(0.2f, 0.012f, 0.2f);
+        ring.GetComponent<Renderer>().sharedMaterial = GetOrCreateMaterial("ChainRingMat", new Color(0.45f, 0.46f, 0.5f));
+        Object.DestroyImmediate(ring.GetComponent<Collider>());
+
+        var prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
+        Object.DestroyImmediate(root);
+        return prefab;
+    }
+
+    /// <summary>Chain prefab: a coiled-loop pickup mesh ("Coil", shown while loose) plus a LineRenderer +
+    /// ChainRoute that draw the routed chain once installed. See ChainRoute for the two-stage routing.</summary>
+    private static GameObject CreateChainPrefab(string name, Color color)
+    {
+        string path = $"{PrefabDir}/{name}.prefab";
+        var existing = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        if (existing != null)
+            return existing;
+
+        EnsureFolder("Assets", "Meshes");
+        string meshPath = "Assets/Meshes/ChainCoilTorus.asset";
+        var coilMesh = AssetDatabase.LoadAssetAtPath<Mesh>(meshPath);
+        if (coilMesh == null)
+        {
+            coilMesh = CreateTorusMesh(0.09f, 0.02f, 18, 8);
+            AssetDatabase.CreateAsset(coilMesh, meshPath);
+        }
+
+        var root = new GameObject(name);
+        var mat = GetOrCreateMaterial(name + "Mat", color);
+
+        var coil = new GameObject("Coil");
+        coil.transform.SetParent(root.transform, false);
+        coil.AddComponent<MeshFilter>().sharedMesh = coilMesh;
+        coil.AddComponent<MeshRenderer>().sharedMaterial = mat;
+        var coilCol = coil.AddComponent<BoxCollider>(); // simple pickup hitbox for the loose chain
+        coilCol.size = new Vector3(0.22f, 0.22f, 0.05f);
+
+        var line = root.AddComponent<LineRenderer>();
+        line.useWorldSpace = true;
+        line.widthMultiplier = 0.03f;
+        line.numCapVertices = 2;
+        line.positionCount = 0;
+        line.sharedMaterial = mat;
+        line.enabled = false; // ChainRoute enables it on install
+
+        root.AddComponent<ChainRoute>();
 
         var prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
         Object.DestroyImmediate(root);

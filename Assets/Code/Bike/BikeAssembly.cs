@@ -31,6 +31,10 @@ namespace MyDutchBike.Bike
         private readonly Dictionary<string, GameObject> _spawnedInstances = new Dictionary<string, GameObject>();
         private readonly Dictionary<string, FastenerPoint> _fastenerPoints = new Dictionary<string, FastenerPoint>();
         private readonly Dictionary<string, PartDefinition> _installedDefs = new Dictionary<string, PartDefinition>();
+        // FastenerKey(defId, slotId) -> the slot id on the same part that must be tight before this one can be.
+        private readonly Dictionary<string, string> _fastenerPrereq = new Dictionary<string, string>();
+
+        private const float SecuredThreshold = 0.9f;
 
         private static readonly Color SocketOpenColor = new Color(0.2f, 1f, 0.5f);
         private static readonly Color SocketHighlightColor = new Color(1f, 0.9f, 0.15f);
@@ -131,9 +135,13 @@ namespace MyDutchBike.Bike
                 point.partDefId = def.id;
                 point.fastenerSlotId = slot.id;
                 point.owner = this;
+                point.displayLabel = slot.displayLabel;
+                point.isChainRoute = slot.isChainRoute;
                 point.indicator = DebugVisualUtility.CreateIndicator(pointGo.transform, 0.025f, FastenerLooseColor);
 
                 _fastenerPoints[FastenerKey(def.id, slot.id)] = point;
+                if (!string.IsNullOrEmpty(slot.prerequisiteFastenerId))
+                    _fastenerPrereq[FastenerKey(def.id, slot.id)] = slot.prerequisiteFastenerId;
                 state.fasteners.Add(new FastenerState { fastenerSlotId = slot.id, present = true, tightness = 0f });
             }
         }
@@ -202,6 +210,12 @@ namespace MyDutchBike.Bike
 
             RegisterSockets(def, instance.transform);
             SpawnFasteners(def, instance.transform, state);
+
+            // A chain routes across two other parts (crankset + rear wheel), so it needs to be wired up
+            // to them once its own routing fasteners exist. Deterministic call, not a Start() race.
+            var chainRoute = instance.GetComponent<ChainRoute>();
+            if (chainRoute != null)
+                chainRoute.Setup(this);
 
             return true;
         }
@@ -319,6 +333,10 @@ namespace MyDutchBike.Bike
             if (fastener == null)
                 return false;
 
+            // Respect ordering (e.g. chain: front sprocket before rear cog, and rear must come off before front).
+            if (!CanAdjustFastener(partDefId, fastenerSlotId, delta > 0f, out _))
+                return false;
+
             fastener.tightness = Mathf.Clamp01(fastener.tightness + delta);
 
             if (_fastenerPoints.TryGetValue(FastenerKey(partDefId, fastenerSlotId), out var point) && point.indicator != null)
@@ -326,6 +344,45 @@ namespace MyDutchBike.Bike
 
             return true;
         }
+
+        /// <summary>Ordering rule for prerequisite fasteners (chain routing): you can't tighten a fastener
+        /// until its prerequisite is tight, and you can't loosen a fastener while something that depends on
+        /// it is still tight. Bolts (no prerequisite) always pass.</summary>
+        public bool CanAdjustFastener(string partDefId, string fastenerSlotId, bool increasing, out string reason)
+        {
+            reason = "";
+            if (increasing)
+            {
+                if (_fastenerPrereq.TryGetValue(FastenerKey(partDefId, fastenerSlotId), out var prereqId)
+                    && !string.IsNullOrEmpty(prereqId)
+                    && GetFastenerTightness(partDefId, prereqId) < SecuredThreshold)
+                {
+                    reason = "do the previous step first";
+                    return false;
+                }
+                return true;
+            }
+
+            // Loosening: block if any fastener on this part depends on this one and is still tight.
+            string prefix = partDefId + ":";
+            foreach (var kv in _fastenerPrereq)
+            {
+                if (kv.Value != fastenerSlotId || !kv.Key.StartsWith(prefix))
+                    continue;
+                string dependentSlot = kv.Key.Substring(prefix.Length);
+                if (GetFastenerTightness(partDefId, dependentSlot) > 0.02f)
+                {
+                    reason = "undo the later step first";
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /// <summary>The live GameObject for an installed part (frame or otherwise), or null. Lets a part's
+        /// own components (e.g. ChainRoute) find sibling parts it needs to reach, like the crankset/rear wheel.</summary>
+        public GameObject GetInstalledInstance(string partDefId)
+            => _spawnedInstances.TryGetValue(partDefId, out var go) ? go : null;
 
         private static string FastenerKey(string partDefId, string fastenerSlotId) => $"{partDefId}:{fastenerSlotId}";
 
@@ -405,7 +462,10 @@ namespace MyDutchBike.Bike
                 if (state == null || !state.installed)
                     return $"{part.displayName} (attach)";
                 if (!state.IsSecured())
-                    return $"{part.displayName} (tighten)";
+                {
+                    bool isChain = part.fasteners != null && System.Array.Exists(part.fasteners, f => f.isChainRoute);
+                    return $"{part.displayName} ({(isChain ? "route" : "tighten")})";
+                }
             }
             return null;
         }

@@ -20,6 +20,10 @@ Assets/AssetStoreTools*
 crashlytics-build.properties
 sysinfo.txt
 
+# MCP-for-Unity verification screenshots (scratch, not source)
+Assets/Screenshots/
+Assets/Screenshots.meta
+
 # Local Claude Code session state - but keep the shared project config/hooks tracked
 .claude/*
 !.claude/settings.json

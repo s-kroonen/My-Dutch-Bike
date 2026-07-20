@@ -17,3 +17,4 @@ MonoBehaviour:
   acceleration: 2.5
   turnRate: 110
   stability: 1.3
+  rearGearCount: 1
