@@ -11,10 +11,10 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7d1046b8abf7ebc4cbb8d156303d853c, type: 3}
   m_Name: bike.crankset
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier: Assembly-CSharp::MyDutchBike.Parts.PartDefinition
   id: bike.crankset
   displayName: Crankset
-  prefab: {fileID: 3486858066719552864, guid: 90d5d054644c90241843b1987930e3ce, type: 3}
+  prefab: {fileID: 6524978607129757394, guid: 90d5d054644c90241843b1987930e3ce, type: 3}
   mass: 1
   category: 5
   installsOn: 5

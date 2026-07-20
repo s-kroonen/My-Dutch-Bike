@@ -11,10 +11,10 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7d1046b8abf7ebc4cbb8d156303d853c, type: 3}
   m_Name: bike.handlebar
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier: Assembly-CSharp::MyDutchBike.Parts.PartDefinition
   id: bike.handlebar
   displayName: Handlebar
-  prefab: {fileID: 7799879299310087304, guid: 33c8a2ff7aac5c74db3df97af95a5303, type: 3}
+  prefab: {fileID: 5621661194100138564, guid: 33c8a2ff7aac5c74db3df97af95a5303, type: 3}
   mass: 1
   category: 7
   installsOn: 7
@@ -23,6 +23,6 @@ MonoBehaviour:
   fasteners:
   - id: stem_bolt
     type: 0
-    localPosition: {x: 0, y: 0, z: 0}
+    localPosition: {x: 0, y: 0.03, z: 0.06}
     tightnessThreshold: 0.9
     toolRequired: 1

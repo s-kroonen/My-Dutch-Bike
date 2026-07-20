@@ -11,10 +11,10 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7d1046b8abf7ebc4cbb8d156303d853c, type: 3}
   m_Name: bike.seat
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier: Assembly-CSharp::MyDutchBike.Parts.PartDefinition
   id: bike.seat
   displayName: Seat
-  prefab: {fileID: 4821934458321539816, guid: ae5f52bee3b4df345a0a10a5e04d51d4, type: 3}
+  prefab: {fileID: 3704055025039534190, guid: ae5f52bee3b4df345a0a10a5e04d51d4, type: 3}
   mass: 1
   category: 8
   installsOn: 8
@@ -23,6 +23,6 @@ MonoBehaviour:
   fasteners:
   - id: seat_clamp
     type: 0
-    localPosition: {x: 0, y: 0, z: 0}
+    localPosition: {x: 0, y: -0.07, z: 0}
     tightnessThreshold: 0.9
     toolRequired: 1

@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 057aad4febc291f46b54253085e0f3c2, type: 3}
   m_Name: bike.frame.city
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier: Assembly-CSharp::MyDutchBike.Parts.FrameMechanics
   frameId: bike.frame.city
   topSpeed: 5
   acceleration: 2.5

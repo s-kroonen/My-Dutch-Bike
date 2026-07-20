@@ -11,10 +11,10 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7d1046b8abf7ebc4cbb8d156303d853c, type: 3}
   m_Name: bike.fork
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier: Assembly-CSharp::MyDutchBike.Parts.PartDefinition
   id: bike.fork
   displayName: Fork
-  prefab: {fileID: 5751406288585718065, guid: 61f9584b13a797442bd83d5a6ee82e83, type: 3}
+  prefab: {fileID: 5619037531063449290, guid: 61f9584b13a797442bd83d5a6ee82e83, type: 3}
   mass: 1
   category: 2
   installsOn: 2
@@ -35,11 +35,11 @@ MonoBehaviour:
   fasteners:
   - id: headset_nut_1
     type: 1
-    localPosition: {x: 0.02, y: 0.15, z: 0}
+    localPosition: {x: 0, y: 0.13, z: 0.07}
     tightnessThreshold: 0.9
     toolRequired: 1
   - id: headset_nut_2
     type: 1
-    localPosition: {x: -0.02, y: 0.15, z: 0}
+    localPosition: {x: 0, y: 0.13, z: -0.07}
     tightnessThreshold: 0.9
     toolRequired: 1

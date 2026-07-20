@@ -11,10 +11,10 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7d1046b8abf7ebc4cbb8d156303d853c, type: 3}
   m_Name: bike.tire_rear
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier: Assembly-CSharp::MyDutchBike.Parts.PartDefinition
   id: bike.tire_rear
   displayName: Rear Tire
-  prefab: {fileID: 8778283014605235549, guid: 34f2a86b3a81ec449bc35e7a92a86417, type: 3}
+  prefab: {fileID: 3056462529946329804, guid: 34f2a86b3a81ec449bc35e7a92a86417, type: 3}
   mass: 1
   category: 4
   installsOn: 4

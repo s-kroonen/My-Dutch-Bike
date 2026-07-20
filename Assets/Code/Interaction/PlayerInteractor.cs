@@ -14,9 +14,14 @@ namespace MyDutchBike.Interaction
         public FirstPersonController firstPerson;
         public Transform holdPoint;
         public float interactRange = 3f;
+        [Tooltip("Half-angle (degrees) of the aim cone used to pick which socket a held part snaps to.")]
+        public float placeAngleDegrees = 25f;
+        [Tooltip("Half-angle (degrees) of the aim cone for targeting fasteners — keep tight so aiming at the frame still lets you mount.")]
+        public float fastenerAngleDegrees = 8f;
         public float tightenPerSecond = 0.6f;
 
         private LoosePart _heldPart;
+        private BikeAssembly[] _bikes;
         private BikeRideController _mountedBike;
         private Transform _cameraOriginalParent;
         private Vector3 _cameraOriginalLocalPos;
@@ -27,6 +32,18 @@ namespace MyDutchBike.Interaction
         private void Awake()
         {
             ApplyCursorLock(true);
+            _bikes = FindObjectsByType<BikeAssembly>(FindObjectsInactive.Exclude);
+        }
+
+        private void ClearAllHighlights()
+        {
+            foreach (var bike in _bikes)
+            {
+                if (bike == null)
+                    continue;
+                bike.ClearSocketHighlight();
+                bike.SetTargetedFastener(null);
+            }
         }
 
         private void OnApplicationFocus(bool hasFocus)
@@ -48,6 +65,7 @@ namespace MyDutchBike.Interaction
                 ApplyCursorLock(!_cursorLocked);
 
             _prompt = "";
+            ClearAllHighlights();
 
             if (_mountedBike != null)
             {
@@ -57,10 +75,20 @@ namespace MyDutchBike.Interaction
                 return;
             }
 
-            if (!Physics.Raycast(eye.transform.position, eye.transform.forward, out var hit, interactRange))
+            // Holding a part: placement uses an aim cone (below), so it must run whether or not the
+            // forward ray happens to hit the tiny socket collider — handle it before the raycast gate.
+            if (_heldPart != null)
+            {
+                HandleHolding();
                 return;
+            }
 
-            if (_heldPart == null)
+            Vector3 origin = eye.transform.position;
+            Vector3 direction = eye.transform.forward;
+            bool hasHit = Physics.Raycast(origin, direction, out var hit, interactRange);
+
+            // Picking up a loose part: direct ray hit (loose parts are big and out in the open).
+            if (hasHit)
             {
                 var loose = hit.collider.GetComponentInParent<LoosePart>();
                 if (loose != null)
@@ -72,48 +100,140 @@ namespace MyDutchBike.Interaction
                         return;
                     }
                 }
+            }
 
-                var fastener = hit.collider.GetComponent<FastenerPoint>();
-                if (fastener != null)
+            // Tightening: aim-cone (tight, so looking at the frame body still lets you mount) because
+            // the fastener colliders are too small/buried to reliably hit with a ray.
+            var fastener = FindAimedFastener(origin, direction, out var fastenerBike);
+            var installed = hasHit ? hit.collider.GetComponentInParent<InstalledPart>() : null;
+            var aimedBike = fastenerBike != null ? fastenerBike
+                : installed != null ? installed.owner
+                : hasHit ? hit.collider.GetComponentInParent<BikeAssembly>() : null;
+
+            // [LMB]/[RMB] adjust the targeted fastener (works whether building or disassembling).
+            string tightenPrompt = null;
+            if (fastener != null)
+            {
+                fastenerBike.SetTargetedFastener(fastener);
+                float tightness = fastenerBike.GetFastenerTightness(fastener.partDefId, fastener.fastenerSlotId);
+                tightenPrompt = $"[LMB] tighten / [RMB] loosen {fastener.fastenerSlotId} ({tightness:P0})";
+
+                if (Input.GetMouseButton(0))
+                    fastenerBike.SetFastenerTightness(fastener.partDefId, fastener.fastenerSlotId, tightenPerSecond * Time.deltaTime);
+                else if (Input.GetMouseButton(1))
+                    fastenerBike.SetFastenerTightness(fastener.partDefId, fastener.fastenerSlotId, -tightenPerSecond * Time.deltaTime);
+            }
+
+            // [E] mounts a finished bike, otherwise removes a fully-loosened part into your hands.
+            string actionPrompt = null;
+            bool canMount = aimedBike != null && aimedBike.IsFullyAssembledAndSecured();
+            if (canMount)
+            {
+                actionPrompt = "[E] Mount";
+                if (Input.GetKeyDown(KeyCode.E))
                 {
-                    var partState = fastener.owner.State.Find(fastener.partDefId);
-                    var fastenerState = partState?.fasteners.Find(f => f.fastenerSlotId == fastener.fastenerSlotId);
-                    float tightness = fastenerState != null ? fastenerState.tightness : 0f;
-                    _prompt = $"[LMB] tighten / [RMB] loosen {fastener.fastenerSlotId} ({tightness:P0})";
-
-                    if (Input.GetMouseButton(0))
-                        fastener.owner.SetFastenerTightness(fastener.partDefId, fastener.fastenerSlotId, tightenPerSecond * Time.deltaTime);
-                    else if (Input.GetMouseButton(1))
-                        fastener.owner.SetFastenerTightness(fastener.partDefId, fastener.fastenerSlotId, -tightenPerSecond * Time.deltaTime);
+                    Mount(aimedBike);
                     return;
-                }
-
-                var bike = hit.collider.GetComponentInParent<BikeAssembly>();
-                if (bike != null)
-                {
-                    _prompt = bike.IsFullyAssembledAndSecured() ? "[E] Mount" : "Bike incomplete";
-                    if (Input.GetKeyDown(KeyCode.E))
-                        Mount(bike);
                 }
             }
-            else
+            else if (installed != null && installed.owner.CanRemove(installed.partDefId, out _))
             {
-                _prompt = $"Holding {_heldPart.definition.displayName} — [Q] drop";
-
-                if (Input.GetKeyDown(KeyCode.Q))
+                actionPrompt = $"[E] Remove {installed.name}";
+                if (Input.GetKeyDown(KeyCode.E))
                 {
-                    Drop();
+                    var removed = installed.owner.TryRemovePart(installed.partDefId);
+                    if (removed != null)
+                        PickUp(removed);
                     return;
                 }
+            }
 
-                var socket = hit.collider.GetComponent<SocketMarker>();
-                if (socket != null)
+            if (actionPrompt != null || tightenPrompt != null)
+            {
+                _prompt = actionPrompt != null && tightenPrompt != null
+                    ? $"{actionPrompt}    {tightenPrompt}"
+                    : actionPrompt ?? tightenPrompt;
+                return;
+            }
+
+            if (aimedBike != null && !aimedBike.IsFullyAssembledAndSecured())
+                _prompt = $"Incomplete — next: {aimedBike.FirstIncompleteRequirement()}";
+        }
+
+        /// <summary>Nearest fastener to the player's aim across all bikes, within a tight cone.</summary>
+        private FastenerPoint FindAimedFastener(Vector3 origin, Vector3 direction, out BikeAssembly owner)
+        {
+            owner = null;
+            FastenerPoint best = null;
+            float bestAngle = float.MaxValue;
+
+            foreach (var bike in _bikes)
+            {
+                if (bike == null)
+                    continue;
+
+                var point = bike.FindAimedFastener(origin, direction, interactRange, fastenerAngleDegrees, out float angle);
+                if (point != null && angle < bestAngle)
                 {
-                    bool canInstall = socket.owner.CanInstall(_heldPart.definition, socket.socketId, out var reason);
-                    _prompt = canInstall ? $"[E] Place on {socket.socketId}" : $"Can't place: {reason}";
-                    if (canInstall && Input.GetKeyDown(KeyCode.E))
-                        PlaceOnSocket(socket);
+                    bestAngle = angle;
+                    best = point;
+                    owner = bike;
                 }
+            }
+
+            return best;
+        }
+
+        /// <summary>Runs each frame while a part is held: blinks matching open sockets on every bike,
+        /// picks the one nearest the player's aim, and installs it on [E].</summary>
+        private void HandleHolding()
+        {
+            var def = _heldPart.definition;
+            _prompt = $"Holding {def.displayName} — [Q] drop";
+
+            if (Input.GetKeyDown(KeyCode.Q))
+            {
+                Drop();
+                return;
+            }
+
+            Vector3 origin = eye.transform.position;
+            Vector3 direction = eye.transform.forward;
+
+            SocketMarker bestSocket = null;
+            bool bestInstallable = false;
+            string bestReason = "";
+            float bestAngle = float.MaxValue;
+
+            foreach (var bike in _bikes)
+            {
+                if (bike == null)
+                    continue;
+
+                var socket = bike.FindAimedSocket(def, origin, direction, interactRange, placeAngleDegrees,
+                    out bool installable, out string reason, out float angle);
+
+                // Only blink the socket the player is aiming at if the part can actually go there.
+                bike.SetSocketHighlight(def, installable ? socket : null);
+
+                if (socket != null && angle < bestAngle)
+                {
+                    bestAngle = angle;
+                    bestSocket = socket;
+                    bestInstallable = installable;
+                    bestReason = reason;
+                }
+            }
+
+            if (bestSocket != null && bestInstallable)
+            {
+                _prompt = $"[E] Place on {bestSocket.socketId}";
+                if (Input.GetKeyDown(KeyCode.E))
+                    PlaceOnSocket(bestSocket);
+            }
+            else if (bestSocket != null)
+            {
+                _prompt = $"Can't place: {bestReason}";
             }
         }
 
@@ -146,8 +266,9 @@ namespace MyDutchBike.Interaction
         private void PickUp(LoosePart loose)
         {
             _heldPart = loose;
-            var col = loose.GetComponent<Collider>();
-            if (col != null)
+            // LoosePart's collider(s) live on a child "Visual", so GetComponent on the root misses
+            // them — disable every collider under the part or the ray would keep hitting what we hold.
+            foreach (var col in loose.GetComponentsInChildren<Collider>(true))
                 col.enabled = false;
             var rb = loose.GetComponent<Rigidbody>();
             if (rb != null)
@@ -160,8 +281,7 @@ namespace MyDutchBike.Interaction
 
         private void Drop()
         {
-            var col = _heldPart.GetComponent<Collider>();
-            if (col != null)
+            foreach (var col in _heldPart.GetComponentsInChildren<Collider>(true))
                 col.enabled = true;
             var rb = _heldPart.GetComponent<Rigidbody>();
             if (rb != null)

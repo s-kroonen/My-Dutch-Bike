@@ -11,10 +11,10 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7d1046b8abf7ebc4cbb8d156303d853c, type: 3}
   m_Name: bike.brakes
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier: Assembly-CSharp::MyDutchBike.Parts.PartDefinition
   id: bike.brakes
   displayName: Brakes
-  prefab: {fileID: 2040806284831557610, guid: f3cf0888fb8859b458fbbb7345f8f450, type: 3}
+  prefab: {fileID: 4239276629676256856, guid: f3cf0888fb8859b458fbbb7345f8f450, type: 3}
   mass: 1
   category: 9
   installsOn: 9
@@ -23,11 +23,11 @@ MonoBehaviour:
   fasteners:
   - id: caliper_bolt_1
     type: 0
-    localPosition: {x: 0.02, y: 0, z: 0}
+    localPosition: {x: 0, y: 0.05, z: 0.05}
     tightnessThreshold: 0.9
     toolRequired: 1
   - id: caliper_bolt_2
     type: 0
-    localPosition: {x: -0.02, y: 0, z: 0}
+    localPosition: {x: 0, y: -0.05, z: 0.05}
     tightnessThreshold: 0.9
     toolRequired: 1

@@ -142,11 +142,13 @@ public static class GreyboxSceneAuthoring
         assembly.frameDefinition = frame;
         assembly.requiredParts = BikeBomAuthoring.SharedRequiredParts;
         assembly.mechanics = mechanics;
+        assembly.frameSpawnHeight = 0.6f; // lift the bike so wheels clear the ground / sit in the stand
 
+        // Mount volume: sized for the Z-oriented bike (thin in X, long in Z) and raised to match the lift.
         var mountCollider = stand.AddComponent<BoxCollider>();
         mountCollider.isTrigger = true;
-        mountCollider.size = new Vector3(1.2f, 1f, 0.5f);
-        mountCollider.center = new Vector3(0f, 0.5f, 0f);
+        mountCollider.size = new Vector3(0.7f, 1.4f, 1.4f);
+        mountCollider.center = new Vector3(0f, 0.9f, 0f);
 
         var ride = stand.AddComponent<BikeRideController>();
         var camAnchor = new GameObject("RiderCameraAnchor").transform;
@@ -171,11 +173,15 @@ public static class GreyboxSceneAuthoring
 
             var rb = instance.AddComponent<Rigidbody>();
             rb.mass = Mathf.Max(0.05f, def.mass);
+            rb.angularDamping = 4f; // convex disc colliders + damping so wheels/tires settle instead of rolling off
+
+            SetLayerRecursive(instance, "Part"); // so the player capsule can't collide with / climb dropped parts
         }
     }
 
     /// <summary>Static placeholder repair stand the frame visually rests in — a post + cradle,
-    /// offset off the bike's centerline so it doesn't clip the bottom-bracket/crankset socket.</summary>
+    /// offset off the bike's centerline so it doesn't clip the bottom-bracket/crankset socket. Tall
+    /// enough to hold the bike at its raised working height (see BikeAssembly.frameSpawnHeight).</summary>
     private static void CreateStandProp(Transform parent)
     {
         var mat = MaterialFor("StandMat", new Color(0.12f, 0.12f, 0.14f));
@@ -183,14 +189,14 @@ public static class GreyboxSceneAuthoring
         var post = GameObject.CreatePrimitive(PrimitiveType.Cube);
         post.name = "StandPost";
         post.transform.SetParent(parent, false);
-        post.transform.localPosition = new Vector3(0.18f, 0.15f, 0f);
-        post.transform.localScale = new Vector3(0.06f, 0.3f, 0.06f);
+        post.transform.localPosition = new Vector3(0.18f, 0.3f, 0f);
+        post.transform.localScale = new Vector3(0.06f, 0.6f, 0.06f);
         post.GetComponent<Renderer>().sharedMaterial = mat;
 
         var cradle = GameObject.CreatePrimitive(PrimitiveType.Cube);
         cradle.name = "StandCradle";
         cradle.transform.SetParent(parent, false);
-        cradle.transform.localPosition = new Vector3(0.18f, 0.3f, 0f);
+        cradle.transform.localPosition = new Vector3(0.18f, 0.6f, 0f);
         cradle.transform.localScale = new Vector3(0.16f, 0.04f, 0.16f);
         cradle.GetComponent<Renderer>().sharedMaterial = mat;
 
@@ -206,6 +212,9 @@ public static class GreyboxSceneAuthoring
     {
         var player = new GameObject("Player");
         player.transform.position = position;
+        int playerLayer = LayerMask.NameToLayer("Player");
+        if (playerLayer >= 0)
+            player.layer = playerLayer; // paired with the "Part" layer in the collision matrix so the player passes through parts
         var controller = player.AddComponent<CharacterController>();
         controller.height = 1.8f;
         controller.center = new Vector3(0f, 0.9f, 0f);
@@ -231,6 +240,15 @@ public static class GreyboxSceneAuthoring
         interactor.holdPoint = holdPoint.transform;
 
         player.AddComponent<BikeDebugOverlay>();
+    }
+
+    private static void SetLayerRecursive(GameObject go, string layerName)
+    {
+        int layer = LayerMask.NameToLayer(layerName);
+        if (layer < 0)
+            return;
+        foreach (var t in go.GetComponentsInChildren<Transform>(true))
+            t.gameObject.layer = layer;
     }
 
     private static Material MaterialFor(string name, Color color)
